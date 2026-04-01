@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QQ转盘抽奖</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Microsoft YaHei", sans-serif;
+    }
+    body {
+      background: #f8f9fa;
+      text-align: center;
+      padding: 20px;
+    }
+    .container {
+      max-width: 400px;
+      margin: 0 auto;
+    }
+    .title {
+      font-size: 22px;
+      margin: 15px 0;
+      color: #ff4c4c;
+    }
+    .count-box {
+      background: #fff;
+      padding: 10px;
+      border-radius: 10px;
+      margin: 10px 0;
+      font-size: 16px;
+    }
+    /* 转盘样式 */
+    .wheel-box {
+      position: relative;
+      width: 300px;
+      height: 300px;
+      margin: 20px auto;
+    }
+    .wheel {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 8px solid #fff;
+      box-shadow: 0 0 10px #ccc;
+      position: relative;
+      transition: all 6s ease;
+    }
+    .wheel-item {
+      position: absolute;
+      width: 50%;
+      height: 50%;
+      transform-origin: bottom right;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      clip-path: polygon(0 0, 100% 0, 100% 100%);
+    }
+    .wheel-btn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 60px;
+      background: #ff4c4c;
+      color: #fff;
+      border-radius: 50%;
+      border: none;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      z-index: 10;
+    }
+    /* 分享按钮 */
+    .share-btn {
+      background: #12b7f5;
+      color: #fff;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 30px;
+      font-size: 16px;
+      margin: 10px;
+      cursor: pointer;
+    }
+    .tip {
+      color: #666;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="title">🎉 QQ群转盘抽奖 🎉</div>
+
+  <div class="count-box">
+    你当前剩余抽奖次数：<span id="chance">1</span> 次
+  </div>
+
+  <!-- 转盘 -->
+  <div class="wheel-box">
+    <div class="wheel" id="wheel"></div>
+    <button class="wheel-btn" id="startBtn">开始抽奖</button>
+  </div>
+
+  <!-- 分享区域 -->
+  <button class="share-btn" id="shareBtn">分享到QQ/QQ群</button>
+  <div class="tip">分享后他人通过你的链接进入，双方各+1次抽奖机会！</div>
+</div>
+
+<script>
+  // ======================================
+  // 1. 基础配置（可自己修改奖品、概率）
+  // ======================================
+  const prizes = [
+    { name: "一等奖", color: "#ff9a9a" },
+    { name: "谢谢参与", color: "#f6f6f6" },
+    { name: "二等奖", color: "#9affa9" },
+    { name: "谢谢参与", color: "#f6f6f6" },
+    { name: "三等奖", color: "#99ccff" },
+    { name: "谢谢参与", color: "#f6f6f6" },
+    { name: "四等奖", color: "#ffd28f" },
+    { name: "谢谢参与", color: "#f6f6f6" },
+  ];
+  const prizeDeg = [0, 45, 90, 135, 180, 225, 270, 315]; // 每个奖品角度
+
+  // ======================================
+  // 2. 用户ID & 分享关系（自动生成）
+  // ======================================
+  let uid = localStorage.getItem("lottery_uid");
+  if (!uid) {
+    uid = "u" + Date.now() + Math.random().toString(16).slice(2, 6);
+    localStorage.setItem("lottery_uid", uid);
+  }
+
+  // 读取剩余次数
+  let chance = Number(localStorage.getItem("lottery_chance") || 1);
+  document.getElementById("chance").innerText = chance;
+
+  // ======================================
+  // 3. 拉新奖励逻辑（核心功能）
+  // ======================================
+  const urlParams = new URLSearchParams(window.location.search);
+  const shareUid = urlParams.get("from"); // 分享者ID
+
+  if (shareUid && shareUid !== uid) {
+    // 避免重复领取
+    if (!localStorage.getItem("got_reward_" + shareUid)) {
+      // 自己 +1
+      chance += 1;
+      localStorage.setItem("lottery_chance", chance);
+      
+      // 分享者 +1（本地模拟，正式可对接后端）
+      alert("✅ 你通过分享链接进入！你已获得+1次抽奖机会！\n分享者也会+1次！");
+      
+      localStorage.setItem("got_reward_" + shareUid, "1");
+      document.getElementById("chance").innerText = chance;
+    }
+  }
+
+  // ======================================
+  // 4. 绘制转盘
+  // ======================================
+  const wheel = document.getElementById("wheel");
+  prizes.forEach((item, i) => {
+    const dom = document.createElement("div");
+    dom.className = "wheel-item";
+    dom.style.transform = `rotate(${i * 45}deg)`;
+    dom.style.background = item.color;
+    dom.innerText = item.name;
+    wheel.appendChild(dom);
+  });
+
+  // ======================================
+  // 5. 抽奖逻辑
+  // ======================================
+  let rotating = false;
+  document.getElementById("startBtn").onclick = function () {
+    if (rotating) return;
+    if (chance <= 0) {
+      alert("❌ 次数用完啦！分享链接拉人即可获得更多次数！");
+      return;
+    }
+
+    rotating = true;
+    chance -= 1;
+    localStorage.setItem("lottery_chance", chance);
+    document.getElementById("chance").innerText = chance;
+
+    // 随机角度
+    const randomDeg = Math.floor(Math.random() * 360) + 360 * 5;
+    wheel.style.transform = `rotate(${randomDeg}deg)`;
+
+    // 抽奖结束
+    setTimeout(() => {
+      rotating = false;
+      const deg = randomDeg % 360;
+      let index = 0;
+      for (let i = 0; i < prizeDeg.length; i++) {
+        if (deg >= prizeDeg[i] && deg < (prizeDeg[i + 1] || 360)) {
+          index = i;
+          break;
+        }
+      }
+      alert("🎉 恭喜你获得：" + prizes[index].name);
+    }, 6000);
+  };
+
+  // ======================================
+  // 6. 分享按钮（生成QQ可打开的分享链接）
+  // ======================================
+  document.getElementById("shareBtn").onclick = function () {
+    const shareLink = window.location.origin + window.location.pathname + "?from=" + uid;
+    prompt("✅ 复制你的专属分享链接，发到QQ群/空间：", shareLink);
+  };
+</script>
+</body>
+</html>
